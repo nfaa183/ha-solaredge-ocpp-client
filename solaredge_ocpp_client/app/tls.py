@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
+ORG_NAME = "SolarEdge OCPP Client"
 CA_NAME = "SolarEdge OCPP Client local CA"
 
 
@@ -46,7 +47,12 @@ def _load(cert_path: str, key_path: str):
 
 def _create_ca(directory: str):
     key = ec.generate_private_key(ec.SECP256R1())
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, CA_NAME)])
+    name = x509.Name(
+        [
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, ORG_NAME),
+            x509.NameAttribute(NameOID.COMMON_NAME, CA_NAME),
+        ]
+    )
     now = datetime.now(timezone.utc)
     cert = (
         x509.CertificateBuilder()
@@ -94,7 +100,14 @@ def _create_leaf(directory: str, kind: str, address: str, ca_cert, ca_key) -> No
     now = datetime.now(timezone.utc)
     cert = (
         x509.CertificateBuilder()
-        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, address)]))
+        .subject_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, ORG_NAME),
+                    x509.NameAttribute(NameOID.COMMON_NAME, address),
+                ]
+            )
+        )
         .issuer_name(ca_cert.subject)
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
@@ -120,10 +133,17 @@ def ensure_certificates(directory: str, address: str) -> str:
     os.makedirs(directory, exist_ok=True)
     ca_cert_path = os.path.join(directory, "ca.pem")
     ca_key_path = os.path.join(directory, "ca.key")
+    ca_cert = ca_key = None
     if os.path.exists(ca_cert_path) and os.path.exists(ca_key_path):
         ca_cert, ca_key = _load(ca_cert_path, ca_key_path)
-    else:
+        if not ca_cert.subject.get_attributes_for_oid(NameOID.ORGANIZATION_NAME):
+            # Older CA without an organisation name: the charger rejects it.
+            ca_cert = ca_key = None
+    if ca_cert is None:
         ca_cert, ca_key = _create_ca(directory)
+        state_file = os.path.join(directory, "server.json")
+        if os.path.exists(state_file):
+            os.remove(state_file)
 
     state_path = os.path.join(directory, "server.json")
     state = {}
