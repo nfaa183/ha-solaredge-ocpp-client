@@ -1,8 +1,8 @@
 """SolarEdge OCPP client for Home Assistant.
 
-v0.1 implements the capture mode only: the charger connects to this app,
-the app relays every frame to the SolarEdge CSMS unchanged, records the
-exchange and stores the charger's OCPP credentials for the client mode.
+Capture mode: the charger connects to this app over TLS, the app relays
+every frame to the SolarEdge CSMS unchanged, records the exchange and stores
+the charger's OCPP credentials for the client mode.
 """
 
 import asyncio
@@ -17,9 +17,12 @@ from websockets.asyncio.client import connect
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
+import tls
+
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
 OPTIONS_FILE = os.path.join(DATA_DIR, "options.json")
 CREDENTIALS_FILE = os.path.join(DATA_DIR, "credentials.json")
+TLS_DIR = os.path.join(DATA_DIR, "tls")
 CAPTURE_DIR = os.environ.get("CAPTURE_DIR", "/share/solaredge_ocpp_client")
 LISTEN_PORT = 9010
 SUBPROTOCOLS = ["ocpp1.6"]
@@ -193,10 +196,35 @@ async def handle_charger(charger, upstream_base: str) -> None:
         log.info("Session closed, capture saved to %s", capture.path)
 
 
+class _HandshakeNoiseFilter(logging.Filter):
+    """The charger probes the server with HTTP HEAD before connecting."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.getMessage() == "opening handshake failed" and record.exc_info:
+            cause = record.exc_info[1].__cause__ if record.exc_info[1] else None
+            if cause and "got HEAD" in str(cause):
+                return False
+        return True
+
+
 async def main() -> None:
     options = load_options()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.getLogger("websockets.server").addFilter(_HandshakeNoiseFilter())
     upstream_base = options["upstream_url"]
+    server_address = options["server_address"].strip()
+    if not server_address:
+        log.error("Set the option 'server_address' (address of Home Assistant as seen by the charger)")
+        raise SystemExit(1)
+
+    ca_pem = tls.ensure_certificates(TLS_DIR, server_address)
+    os.makedirs(CAPTURE_DIR, exist_ok=True)
+    ca_export = os.path.join(CAPTURE_DIR, "solaredge-ocpp-client-ca.pem")
+    with open(ca_export, "w", encoding="ascii") as f:
+        f.write(ca_pem)
+    log.info(
+        "Root certificate to install on the charger (also in %s):\n%s", ca_export, ca_pem.strip()
+    )
 
     async def handler(connection):
         await handle_charger(connection, upstream_base)
@@ -207,9 +235,11 @@ async def main() -> None:
         LISTEN_PORT,
         subprotocols=SUBPROTOCOLS,
         ping_interval=None,
+        ssl=tls.server_context(TLS_DIR),
     ) as server:
         log.info(
-            "Capture mode: waiting for the charger on ws://<this host>:%d/ , relaying to %s",
+            "Capture mode: waiting for the charger on wss://%s:%d/ , relaying to %s",
+            server_address,
             LISTEN_PORT,
             upstream_base,
         )

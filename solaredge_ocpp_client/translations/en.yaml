@@ -1,4 +1,9 @@
 configuration:
+  server_address:
+    name: Home Assistant address
+    description: >-
+      IP address or host name of Home Assistant, exactly as entered in the
+      charger's "Central System Address". Used for the TLS certificate.
   upstream_url:
     name: SolarEdge OCPP server
     description: >-

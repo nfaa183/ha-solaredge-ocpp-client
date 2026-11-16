@@ -3,7 +3,7 @@ FROM ${BUILD_FROM}
 
 RUN apk add --no-cache python3 \
     && python3 -m venv /opt/venv \
-    && /opt/venv/bin/pip install --no-cache-dir websockets==15.0.1
+    && /opt/venv/bin/pip install --no-cache-dir websockets==15.0.1 cryptography==44.0.3
 
 COPY app /app
 
