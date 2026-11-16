@@ -1,5 +1,5 @@
 name: SolarEdge OCPP Client
-version: "0.4.0"
+version: "1.0.0"
 slug: solaredge_ocpp_client
 description: Keeps a locally controlled SolarEdge ONE EV charger visible in the SolarEdge app
 url: "https://github.com/nfaa183/ha-solaredge-ocpp-client"
@@ -9,15 +9,42 @@ arch:
 init: false
 startup: application
 boot: manual
+homeassistant_api: true
 map:
   - share:rw
 ports:
   9010/tcp: 9010
 ports_description:
-  9010/tcp: OCPP endpoint for the charger (capture mode)
+  9010/tcp: OCPP endpoint for the charger (capture mode only)
 options:
-  server_address: ""
+  mode: client
   upstream_url: "wss://csms.solaredge.com:443/gw"
+  server_address: ""
+  meter_interval: 30
+  status_entity: sensor.charger_status_connector
+  energy_register_entity: sensor.charger_energy_active_import_register
+  power_entity: sensor.charger_power_active_import
+  current_l1_entity: sensor.se_one_ev_charger_current_l1
+  current_l2_entity: sensor.se_one_ev_charger_current_l2
+  current_l3_entity: sensor.se_one_ev_charger_current_l3
+  current_offered_entity: sensor.charger_current_offered
+  charge_point_vendor: "Keba AG"
+  charge_point_model: "KC-P30"
+  charge_point_serial: ""
+  charge_point_firmware: "2.1.1"
 schema:
-  server_address: str
+  mode: "list(client|capture)"
   upstream_url: url
+  server_address: str?
+  meter_interval: int(10,300)
+  status_entity: str
+  energy_register_entity: str
+  power_entity: str
+  current_l1_entity: str
+  current_l2_entity: str
+  current_l3_entity: str
+  current_offered_entity: str
+  charge_point_vendor: str
+  charge_point_model: str
+  charge_point_serial: str?
+  charge_point_firmware: str
