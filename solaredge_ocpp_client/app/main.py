@@ -110,6 +110,17 @@ async def pump(source, target, direction: str, capture: CaptureFile) -> None:
         await target.send(raw)
 
 
+def challenge_without_auth(connection, request):
+    """The charger only presents its Basic auth after a 401 challenge."""
+    if request.headers.get("Authorization"):
+        return None
+    peer = connection.remote_address[0] if connection.remote_address else "?"
+    log.info("No auth from %s yet: sending a Basic authentication challenge", peer)
+    response = connection.respond(401, "Authentication required\n")
+    response.headers["WWW-Authenticate"] = 'Basic realm="OCPP"'
+    return response
+
+
 async def handle_charger(charger, upstream_base: str) -> None:
     request = charger.request
     identity = request.path.rstrip("/").rsplit("/", 1)[-1]
@@ -236,6 +247,7 @@ async def main() -> None:
         subprotocols=SUBPROTOCOLS,
         ping_interval=None,
         ssl=tls.server_context(TLS_DIR),
+        process_request=challenge_without_auth,
     ) as server:
         log.info(
             "Capture mode: waiting for the charger on wss://%s:%d/ , relaying to %s",

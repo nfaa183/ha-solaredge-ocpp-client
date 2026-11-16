@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- The charger only presents its credentials after an HTTP 401 challenge; the capture endpoint now sends `401` with `WWW-Authenticate: Basic` when a connection arrives without them.
+
 ## 0.3.0
 
 - The local certificates now carry an organization name, which the charger requires ("Certificate does not have an organization name set"). An older certificate without one is regenerated automatically.
