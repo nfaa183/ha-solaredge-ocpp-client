@@ -1,0 +1,21 @@
+name: SolarEdge OCPP Client
+version: "0.1.0"
+slug: solaredge_ocpp_client
+description: Keeps a locally controlled SolarEdge ONE EV charger visible in the SolarEdge app
+url: "https://github.com/nfaa183/ha-solaredge-ocpp-client"
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: application
+boot: manual
+map:
+  - share:rw
+ports:
+  9010/tcp: 9010
+ports_description:
+  9010/tcp: OCPP endpoint for the charger (capture mode)
+options:
+  upstream_url: "wss://csms.solaredge.com:443/gw"
+schema:
+  upstream_url: url

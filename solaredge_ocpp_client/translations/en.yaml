@@ -1,0 +1,8 @@
+configuration:
+  upstream_url:
+    name: SolarEdge OCPP server
+    description: >-
+      Base URL of the SolarEdge central system, as configured on the charger
+      (host, port and path). The charge point identity is appended automatically.
+network:
+  9010/tcp: OCPP endpoint for the charger (capture mode)
