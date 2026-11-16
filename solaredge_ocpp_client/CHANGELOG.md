@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- The local certificates now carry an organization name, which the charger requires ("Certificate does not have an organization name set"). An older certificate without one is regenerated automatically.
+
 ## 0.2.0
 
 - Capture mode now uses TLS: the charger only sends its credentials when "Secure Central System Connection" is on. The app creates a local root CA (to install on the charger) and ECDSA and RSA server certificates.
