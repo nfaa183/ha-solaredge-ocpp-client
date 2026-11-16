@@ -12,10 +12,41 @@ Home Assistant keeps full control. Commands sent by SolarEdge never reach the ch
 
 ## Status
 
-| Version | Mode | What it does |
-|---|---|---|
-| 0.2 | Capture | One-time recording of the real charger ↔ SolarEdge exchange, and capture of the charger's OCPP credentials |
-| 1.0 (planned) | Client | Reports status, sessions and meter values from Home Assistant entities to SolarEdge |
+| Mode | What it does |
+|---|---|
+| Client (default) | Connects to SolarEdge as the charge point and reports Home Assistant data |
+| Capture | One-time recording of the charger ↔ SolarEdge exchange, and capture of the OCPP credentials |
+
+## Client mode
+
+The charger stays connected to Home Assistant's OCPP integration. This add-on
+connects to SolarEdge as the same charge point identity, using the credentials
+captured earlier, and reports:
+
+- **BootNotification** on connect (vendor, model, serial, firmware from options).
+- **Heartbeat** at the interval SolarEdge sets.
+- **StatusNotification** on connect and whenever the connector status changes.
+- **MeterValues** every `meter_interval` seconds: energy register, active power,
+  current per phase and offered current, read from Home Assistant entities.
+
+Commands from SolarEdge are answered locally: queries (GetConfiguration,
+TriggerMessage) are honoured, anything that would change the charger (Reset,
+RemoteStart/Stop, SetChargingProfile, ChangeAvailability) is rejected. The
+charger is never contacted.
+
+### Setup
+
+1. Capture the credentials once (see "Capture mode" below); `/data/credentials.json`
+   must exist.
+2. Set the entity options to match your install (defaults suit a SolarEdge ONE /
+   KEBA P30 behind the HA OCPP integration):
+   - `status_entity`, `energy_register_entity` (kWh), `power_entity` (kW),
+     `current_l1_entity` / `l2` / `l3` (A), `current_offered_entity` (A);
+   - `charge_point_vendor` / `model` / `serial` / `firmware` for BootNotification.
+3. Set `mode: client` (the default) and start the add-on. The log shows
+   `Connected to SolarEdge as <identity>`.
+
+Charging sessions (transactions) are not reported yet.
 
 ## Capture mode
 
@@ -27,8 +58,9 @@ creates a local root certificate that you install on the charger.
 During the capture, the charger is connected to SolarEdge through this app, not to
 Home Assistant: local control (OCPP integration, evcc) is unavailable for that time.
 
-1. Set the option **Home Assistant address** to the address the charger uses as
-   *Central System Address* (for example `192.168.1.10`), then start the app.
+1. Set `mode: capture`, set the option **Home Assistant address** (`server_address`)
+   to the address the charger uses as *Central System Address* (for example
+   `192.168.1.10`), then start the app.
 2. Get the root certificate: `/share/solaredge_ocpp_client/solaredge-ocpp-client-ca.pem`
    (also printed in the app log, between `BEGIN CERTIFICATE` and `END CERTIFICATE`).
 3. On the charger's web interface, OCPP page:
@@ -41,8 +73,8 @@ Home Assistant: local control (OCPP integration, evcc) is unavailable for that t
    - `Credentials accepted by SolarEdge … saved in the app's private storage`
 5. Leave it running for about 15 minutes. If possible, plug in a car and let a
    session start and stop: the transaction messages are needed for the client mode.
-6. Restore the charger: port `9000`, *Secure* **OFF**, **Apply**. Stop the app.
-   The root certificate can stay on the charger.
+6. Restore the charger: port `9000`, *Secure* **OFF**, **Apply**. Set `mode: client`
+   and restart. The root certificate can stay on the charger.
 
 ### Output
 

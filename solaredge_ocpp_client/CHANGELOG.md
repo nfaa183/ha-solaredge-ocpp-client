@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0
+
+- Client mode (now the default): the add-on connects to SolarEdge as the charge point and reports BootNotification, Heartbeat, StatusNotification and MeterValues built from Home Assistant entities. The charger stays on Home Assistant; commands from SolarEdge are answered locally and never reach it.
+- Capture mode kept, selected with the `mode` option.
+
 ## 0.4.0
 
 - The charger only presents its credentials after an HTTP 401 challenge; the capture endpoint now sends `401` with `WWW-Authenticate: Basic` when a connection arrives without them.
