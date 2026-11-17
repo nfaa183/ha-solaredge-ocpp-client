@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+
+- No StatusNotification while Home Assistant is unreachable (for example during a restart): the add-on used to report a false "Available", seen by SolarEdge as the car being unplugged.
+
 ## 1.1.0
 
 - Charging sessions: a StartTransaction is sent when a car is plugged in and a StopTransaction when it is unplugged; MeterValues carry the transaction id. The SolarEdge app needs this to show the charger's power and keep it out of the house consumption, including climate and preconditioning after the charge.

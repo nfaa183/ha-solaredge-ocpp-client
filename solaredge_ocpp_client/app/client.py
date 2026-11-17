@@ -217,8 +217,13 @@ class ChargePoint:
         await self._call("Heartbeat", {})
 
     async def send_status_notification(self) -> None:
-        status = await ha.get_text(self.config.status_entity) or "Available"
-        status = _OCPP_STATUSES.get(status.lower(), status)
+        raw = await ha.get_text(self.config.status_entity)
+        if raw is None:
+            # Home Assistant unreachable (restart): report nothing rather than a
+            # false "Available", which SolarEdge would read as the car unplugged.
+            log.info("Connector status unknown; StatusNotification skipped")
+            return
+        status = _OCPP_STATUSES.get(raw.lower(), raw)
         await self._call(
             "StatusNotification",
             {"connectorId": 1, "errorCode": "NoError", "status": status, "timestamp": now_iso()},
@@ -316,7 +321,7 @@ class ChargePoint:
         while True:
             raw = await ha.get_text(self.config.status_entity)
             status = _OCPP_STATUSES.get(raw.lower(), raw) if raw else None
-            if status != last_status:
+            if status is not None and status != last_status:
                 last_status = status
                 await self._safe(self.send_status_notification())
             if status in _PLUGGED and self.transaction_id is None:
