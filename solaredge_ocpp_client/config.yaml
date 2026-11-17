@@ -1,5 +1,5 @@
 name: SolarEdge OCPP Client
-version: "1.0.1"
+version: "1.0.2"
 slug: solaredge_ocpp_client
 description: Keeps a locally controlled SolarEdge ONE EV charger visible in the SolarEdge app
 url: "https://github.com/nfaa183/ha-solaredge-ocpp-client"
