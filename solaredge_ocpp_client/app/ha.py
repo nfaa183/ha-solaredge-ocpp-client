@@ -6,21 +6,34 @@ reaches the Core API at http://supervisor/core/api with the Supervisor token.
 
 import asyncio
 import json
+import logging
 import os
 import urllib.error
 import urllib.request
 
-BASE_URL = "http://supervisor/core/api"
+BASE_URL = os.environ.get("HA_BASE_URL", "http://supervisor/core/api")
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
+
+log = logging.getLogger("solaredge_ocpp_client.ha")
+_reported_error = False
 
 
 def _get_state_blocking(entity_id: str) -> dict | None:
+    global _reported_error
     url = f"{BASE_URL}/states/{entity_id}"
     request = urllib.request.Request(url, headers={"Authorization": f"Bearer {TOKEN}"})
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             return json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, ValueError):
+    except (urllib.error.URLError, TimeoutError, ValueError) as err:
+        if not _reported_error:
+            _reported_error = True
+            log.warning(
+                "Home Assistant API call failed (%s, token %s): %r",
+                url,
+                "set" if TOKEN else "MISSING",
+                err,
+            )
         return None
 
 
