@@ -12,10 +12,36 @@ import urllib.error
 import urllib.request
 
 BASE_URL = os.environ.get("HA_BASE_URL", "http://supervisor/core/api")
-TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
 log = logging.getLogger("solaredge_ocpp_client.ha")
 _reported_error = False
+
+
+def _load_token() -> str:
+    """Find the Supervisor token.
+
+    s6-overlay does not always export it to the add-on's CMD, so fall back to
+    the container-environment files it writes.
+    """
+    token = os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HASSIO_TOKEN")
+    if token:
+        return token
+    for path in (
+        "/run/s6/container_environment/SUPERVISOR_TOKEN",
+        "/var/run/s6/container_environment/SUPERVISOR_TOKEN",
+        "/run/s6/container_environment/HASSIO_TOKEN",
+    ):
+        try:
+            with open(path, encoding="utf-8") as f:
+                value = f.read().strip()
+                if value:
+                    return value
+        except OSError:
+            continue
+    return ""
+
+
+TOKEN = _load_token()
 
 
 def _get_state_blocking(entity_id: str) -> dict | None:
