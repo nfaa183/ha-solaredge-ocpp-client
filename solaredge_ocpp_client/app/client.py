@@ -2,15 +2,16 @@
 
 The real charger stays connected to Home Assistant's OCPP integration. This
 client connects to SolarEdge as the same charge point identity and sends
-BootNotification, Heartbeat, StatusNotification and MeterValues built from
-Home Assistant entities. Commands from SolarEdge are answered locally and never
-reach the charger.
+BootNotification, Heartbeat, StatusNotification, MeterValues and charging
+sessions (Start/StopTransaction) built from Home Assistant entities. Commands
+from SolarEdge are answered locally and never reach the charger.
 """
 
 import asyncio
 import base64
 import json
 import logging
+import os
 import ssl
 import uuid
 from dataclasses import dataclass
@@ -51,6 +52,8 @@ class Config:
     model: str
     serial: str
     firmware: str
+    id_tag: str
+    state_file: str
 
 
 # Responses to commands SolarEdge may send. The charger is never touched, so a
@@ -69,6 +72,26 @@ class ChargePoint:
         self._pending: dict[str, asyncio.Future] = {}
         self.heartbeat_interval = 300
         self.meter_interval = config.meter_interval
+        self.transaction_id: int | None = self._load_transaction()
+
+    # ---- transaction state (survives restarts) ---------------------------------
+
+    def _load_transaction(self) -> int | None:
+        try:
+            with open(self.config.state_file, encoding="utf-8") as f:
+                return int(json.load(f)["transaction_id"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def _save_transaction(self) -> None:
+        if self.transaction_id is None:
+            try:
+                os.remove(self.config.state_file)
+            except OSError:
+                pass
+            return
+        with open(self.config.state_file, "w", encoding="utf-8") as f:
+            json.dump({"transaction_id": self.transaction_id}, f)
 
     # ---- low-level OCPP framing -------------------------------------------------
 
@@ -230,10 +253,56 @@ class ChargePoint:
         if not samples:
             log.warning("No meter values available from Home Assistant; skipping")
             return
-        await self._call(
-            "MeterValues",
-            {"connectorId": 1, "meterValue": [{"timestamp": now_iso(), "sampledValue": samples}]},
+        payload = {"connectorId": 1, "meterValue": [{"timestamp": now_iso(), "sampledValue": samples}]}
+        if self.transaction_id is not None:
+            payload["transactionId"] = self.transaction_id
+        await self._call("MeterValues", payload)
+
+    async def _meter_wh(self) -> int | None:
+        value = await ha.get_float(self.config.energy_register_entity, 1000.0)
+        return None if value is None else int(round(value))
+
+    async def start_transaction(self) -> None:
+        meter = await self._meter_wh()
+        if meter is None:
+            log.warning("Energy register unavailable; StartTransaction postponed")
+            return
+        result = await self._call(
+            "StartTransaction",
+            {
+                "connectorId": 1,
+                "idTag": self.config.id_tag,
+                "meterStart": meter,
+                "timestamp": now_iso(),
+            },
         )
+        transaction_id = result.get("transactionId")
+        if not isinstance(transaction_id, int):
+            log.error("StartTransaction without transactionId: %s", result)
+            return
+        self.transaction_id = transaction_id
+        self._save_transaction()
+        status = (result.get("idTagInfo") or {}).get("status")
+        log.info("Session %s opened (meter %s Wh, idTag %s)", transaction_id, meter, status)
+
+    async def stop_transaction(self, reason: str = "EVDisconnected") -> None:
+        meter = await self._meter_wh()
+        if meter is None:
+            log.warning("Energy register unavailable; StopTransaction postponed")
+            return
+        await self._call(
+            "StopTransaction",
+            {
+                "transactionId": self.transaction_id,
+                "idTag": self.config.id_tag,
+                "meterStop": meter,
+                "timestamp": now_iso(),
+                "reason": reason,
+            },
+        )
+        log.info("Session %s closed (meter %s Wh)", self.transaction_id, meter)
+        self.transaction_id = None
+        self._save_transaction()
 
     # ---- loops ------------------------------------------------------------------
 
@@ -245,11 +314,16 @@ class ChargePoint:
     async def _meter_loop(self) -> None:
         last_status = None
         while True:
-            await self._safe(self.send_meter_values())
-            status = await ha.get_text(self.config.status_entity)
+            raw = await ha.get_text(self.config.status_entity)
+            status = _OCPP_STATUSES.get(raw.lower(), raw) if raw else None
             if status != last_status:
                 last_status = status
                 await self._safe(self.send_status_notification())
+            if status in _PLUGGED and self.transaction_id is None:
+                await self._safe(self.start_transaction())
+            elif status in _UNPLUGGED and self.transaction_id is not None:
+                await self._safe(self.stop_transaction())
+            await self._safe(self.send_meter_values())
             await asyncio.sleep(self.meter_interval)
 
     async def _reader(self) -> None:
@@ -317,6 +391,11 @@ _OCPP_STATUSES = {
     "unavailable": "Unavailable",
     "faulted": "Faulted",
 }
+
+# A car is plugged in: a session is open from plug-in to unplug, so energy drawn
+# after the charge (climate, preconditioning) is still counted as the charger's.
+_PLUGGED = {"Preparing", "Charging", "SuspendedEV", "SuspendedEVSE", "Finishing"}
+_UNPLUGGED = {"Available"}
 
 
 async def run(config: Config) -> None:

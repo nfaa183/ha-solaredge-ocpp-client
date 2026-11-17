@@ -20,6 +20,7 @@ import client
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
 OPTIONS_FILE = os.path.join(DATA_DIR, "options.json")
 CREDENTIALS_FILE = os.path.join(DATA_DIR, "credentials.json")
+TRANSACTION_FILE = os.path.join(DATA_DIR, "transaction.json")
 
 log = logging.getLogger("solaredge_ocpp_client")
 
@@ -57,6 +58,8 @@ def build_client_config(options: dict) -> client.Config:
         model=options["charge_point_model"],
         serial=options["charge_point_serial"],
         firmware=options["charge_point_firmware"],
+        id_tag=(options.get("id_tag") or "").strip() or "LOCAL",
+        state_file=TRANSACTION_FILE,
     )
 
 

@@ -1,5 +1,5 @@
 name: SolarEdge OCPP Client
-version: "1.0.2"
+version: "1.1.0"
 slug: solaredge_ocpp_client
 description: Keeps a locally controlled SolarEdge ONE EV charger visible in the SolarEdge app
 url: "https://github.com/nfaa183/ha-solaredge-ocpp-client"
@@ -32,6 +32,7 @@ options:
   charge_point_model: "KC-P30"
   charge_point_serial: ""
   charge_point_firmware: "2.1.1"
+  id_tag: ""
 schema:
   mode: "list(client|capture)"
   upstream_url: url
@@ -48,3 +49,4 @@ schema:
   charge_point_model: str
   charge_point_serial: str?
   charge_point_firmware: str
+  id_tag: str?

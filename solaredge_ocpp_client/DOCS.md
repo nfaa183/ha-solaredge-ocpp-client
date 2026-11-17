@@ -28,6 +28,11 @@ captured earlier, and reports:
 - **StatusNotification** on connect and whenever the connector status changes.
 - **MeterValues** every `meter_interval` seconds: energy register, active power,
   current per phase and offered current, read from Home Assistant entities.
+- **Charging sessions**: StartTransaction when the connector leaves *Available*
+  (car plugged in), StopTransaction when it returns to *Available* (unplugged).
+  The session stays open while the car is plugged, so climate and preconditioning
+  after the charge are still counted as the charger's consumption. The open
+  session survives a restart of the add-on.
 
 Commands from SolarEdge are answered locally: queries (GetConfiguration,
 TriggerMessage) are honoured, anything that would change the charger (Reset,
@@ -42,11 +47,10 @@ charger is never contacted.
    KEBA P30 behind the HA OCPP integration):
    - `status_entity`, `energy_register_entity` (kWh), `power_entity` (kW),
      `current_l1_entity` / `l2` / `l3` (A), `current_offered_entity` (A);
-   - `charge_point_vendor` / `model` / `serial` / `firmware` for BootNotification.
+   - `charge_point_vendor` / `model` / `serial` / `firmware` for BootNotification;
+   - `id_tag` sent with the sessions (empty = `LOCAL`).
 3. Set `mode: client` (the default) and start the add-on. The log shows
    `Connected to SolarEdge as <identity>`.
-
-Charging sessions (transactions) are not reported yet.
 
 ## Capture mode
 

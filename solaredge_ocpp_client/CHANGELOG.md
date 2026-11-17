@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+- Charging sessions: a StartTransaction is sent when a car is plugged in and a StopTransaction when it is unplugged; MeterValues carry the transaction id. The SolarEdge app needs this to show the charger's power and keep it out of the house consumption, including climate and preconditioning after the charge.
+- The open session is kept in `/data/transaction.json` and resumed after a restart.
+- New option `id_tag` (default `LOCAL`).
+
 ## 1.0.0
 
 - Client mode (now the default): the add-on connects to SolarEdge as the charge point and reports BootNotification, Heartbeat, StatusNotification and MeterValues built from Home Assistant entities. The charger stays on Home Assistant; commands from SolarEdge are answered locally and never reach it.
